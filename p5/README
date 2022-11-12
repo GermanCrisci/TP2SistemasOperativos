@@ -1,0 +1,8 @@
+La consigna nos pide crear un servidor que se comunique 
+con varios clientes y realize las operaciones de modificar, 
+leer o borrar registros por parte de los clientes.
+
+El servidor abrira la cola de mensajes 0xa, por la cual recibira mensajes con una
+estructura ya definida y realizara las acciones necesarias para cada comunicacion.
+
+Se hara un fork para poder atender a varios procesos al mismo tiempo.

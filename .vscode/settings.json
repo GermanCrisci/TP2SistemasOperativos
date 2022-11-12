@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "types.h": "c",
+        "ipc.h": "c",
+        "msg.h": "c",
+        "fcntl.h": "c",
+        "string.h": "c"
+    }
+}
