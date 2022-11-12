@@ -1,0 +1,6 @@
+gcc PyV.c -Wall -g -c
+gcc monitor.c -Wall -g -c
+gcc ver_html.c -Wall -g -c
+
+gcc -Wall -g PyV.o monitor.o -o monitor
+gcc -Wall -g PyV.o ver_html.o -o ver_html.cgi

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML en Memoria</title>
+</head>
+<body>
+  <div>
+    <h3>Buscar Contenido</h3>
+    <select name="tag" id="selectTag">
+      <option value="parte1">Parte 1</option>
+      <option value="parte2">Parte 2</option>
+      <option value="parte3">Parte 3</option>
+    </select>
+    <button id="boton-peticion">Enviar Peticion</button>
+  </div>
+  <div id="contenido">
+      
+  </div>
+</body>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $('#boton-peticion').click(() => {
+    $.ajax({
+      url: 'cgi-bin/ver_html.cgi',
+      type: 'GET',
+      data: {
+        tag: $('#selectTag option:selected').val()
+      },
+      dataType: 'text',
+      success: function (res) {
+          $('#contenido').html(/*'<pre>'+*/res/*+'</pre>'*/);
+      }
+    })
+  })
+</script>
+</html>
