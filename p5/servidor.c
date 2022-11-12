@@ -20,10 +20,16 @@ typedef struct msgbuf {
 } mensaje;
 
 void handle_int(int s);
-void extraerMensaje(int* pid, int* ins, char *descr[100], mensaje* m);
+void extraerMensaje();
 
+int pid;
+int ins;
+char descr[100];
 int cola;
 int fd;
+
+mensaje m;
+registro r;
 
 
 int main(int argc, char **argv) {
@@ -42,7 +48,6 @@ int main(int argc, char **argv) {
     } else {
         fd  = open("registros", O_CREAT | O_TRUNC | O_RDWR | 0666);
         // escribo los 1000 registros nulos.
-        registro r;
         r.estado = 0;
         memset(r.descripcion, 0, 100);
         for(int i = 1000; i < 1000; i++) {
@@ -51,32 +56,51 @@ int main(int argc, char **argv) {
 
     }
 
-    mensaje m;
     // atiendo cola
     while(1) {
         // servidor siempre lee tipo 1;
         memset(m.data, 0, 156);
         msgrcv(cola, &m, 156, 1, 0);
         printf("Recibio: %s\n", m.data);
+        
 
-        /*
-        int pid;
-        int ins;
-        char descr[100];
-        char** tmp = (char**) &descr;
 
-        extraerMensaje(&pid, &ins, tmp, &m);
+        extraerMensaje();
 
         printf("pid: %i\n", pid);
         printf("ins: %i\n", ins);
-        printf("ins: %s\n", descr);
-        */
+        printf("descr: %s\n", descr);
+    
+        return 1;
     }
 }
 
-void extraerMensaje(int* pid, int* ins, char* descr[100],mensaje* m) {
-    printf("procesando: %s\n", (*m).data);
+void extraerMensaje() {
+    printf("procesando: %s\n", m.data);
 
+    // extraigo las disintas partes del mensaje y las guardo en las variables.
+    char* token;
+    char *delimitadores = ",";
+    
+    token = strtok(m.data, delimitadores);
+    if(token != NULL) {
+        printf("Token pid: %s\n", token);
+        pid = atoi(token);
+    }
+
+    token = strtok(NULL, delimitadores);
+    if(token != NULL) {
+        printf("Token ins: %s\n", token);
+        ins = atoi(token);
+    }
+
+    token = strtok(NULL, delimitadores);
+    if(token != NULL) {
+        printf("Token descr: %s\n", token);
+        strcpy(descr, token);
+    }
+
+    return;
 }
 
 void handle_int(int s) {

@@ -50,21 +50,23 @@ int main(int argc, char **argv) {
         printf("Enviando: %s\n", m.data);
         msgsnd(cola, &m, 156, 0);
 
+        
         // espero respuesta
         printf("Esperando respuesta...\n");
         msgrcv(cola, &m, 156, pid, 0);
         printf("Recibio: %s\n", m.data);
 
+        /*
         int pid;
         int ins;
         char descr[100];
         char** tmp = (char**) &descr;
 
         extraerMensaje(&pid, &ins, tmp, &m);
-
         printf("pid: %i\n", pid);
         printf("ins: %i\n", ins);
         printf("ins: %s\n", descr);
+        */
     }
 }
 
