@@ -80,12 +80,6 @@ int main(int argc, char **argv) {
     }
 }
 
-void enviarError(char error[100])
-{
-    sprintf(m.data, "Error: %s", error);
-    msgsnd(cola, &m, 156, 0);
-}
-
 void atenderCliente()
 {
     // ignoro interrupcion ctrl c hasta que termine de atender
@@ -114,9 +108,6 @@ void atenderCliente()
         }
     } else {
         if (strncmp(descr, "leer", 4) == 0 || strncmp(descr, "borrar", 6) == 0) {
-            if (ins > 1000 || ins < 0)
-                enviarError("Se envio un numero de registro invalido.");
-
             // lectura FUNCION BIEN
             if (strncmp(descr, "leer", 4) == 0 && ins > 0 && ins <= 1000) {
                 // leo el registro, en ins me llego el numero
