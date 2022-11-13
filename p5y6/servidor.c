@@ -160,14 +160,19 @@ void atenderCliente()
                 read(fd, &r, sizeof(r));
                 m.tipo = pid;
                 if (r.estado == 1) {
-                    // pongo estado borrado.
-                    r.estado = 2;
-                    // modifico el registro
-                    lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
-                    write(fd, &r, sizeof(r));
-                    // envio confirmacion
-                    sprintf(m.data, "1,%i,Se elimino el registro %i exitosamente", ins, ins);
-                    msgsnd(cola, &m, 156, 0);
+                	if (r.bloqueado ==0 || r.bloqueado == pid){
+                    	// pongo estado borrado.
+                    	r.estado = 2;
+                    	// modifico el registro
+                    	lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
+                    	write(fd, &r, sizeof(r));
+                    	// envio confirmacion
+                    	sprintf(m.data, "1,%i,Se elimino el registro %i exitosamente", ins, ins);
+                    	msgsnd(cola, &m, 156, 0);
+                    } else {
+                    	sprintf(m.data, "0,%i,Registro bloqueado por el proceso %i", ins, r.bloqueado);
+                    	msgsnd(cola, &m, 156, 0);
+                    }
                 } else {
                     sprintf(m.data, "0,%i,No existe el registro que intento eliminar", ins);
                     msgsnd(cola, &m, 156, 0);
