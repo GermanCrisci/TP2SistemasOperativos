@@ -24,12 +24,9 @@ int shmid;
 char cmdargs[2048], args[1024], cmd[1024], msg[300];
 struct stat st;
 int direccionSem = 0xa;
-int semid;
 
 void handle_alarma(int sig);
 void handle_int(int sig);
-void P(int, int);
-void V(int, int);
 
 int main(int argc, char *argv[])
 {
@@ -106,15 +103,6 @@ int main(int argc, char *argv[])
         printf("Espacio en memoria creado exitosamente, shmid = '%i'\n", shmid);
     }
 
-    printf("Creando semaforo...\n");
-    semid = semget(direccionSem, 1, IPC_CREAT|IPC_EXCL|0600);
-    if (semid < 0)
-    {
-        printf("Error: Hubo un error al crear el semaforo! %i\n", semid);
-        return -1;
-    }
-    semctl(semid, 0, SETVAL, 1);
-
     printf("Leyendo archivo...\n");
     fread(&contenidoHtml, st.st_size + 1, 1, fdHtml);
     contenidoHtml[st.st_size] = '\0';
@@ -124,13 +112,11 @@ int main(int argc, char *argv[])
     int *ptrSHM = (int *) shmat(shmid, 0, 0);
     int i = 0;
 
-    P(semid, 0);
     for (; i <= st.st_size; i++)
     {
         *(ptrSHM + i) = contenidoHtml[i];
         printf("%c", *(ptrSHM+i));
     }
-    V(semid, 0);
     printf("Contenido guardado en memoria con exito!\n");
 
     // creando alarma para actualizacion
@@ -162,7 +148,6 @@ void handle_alarma(int sig)
     if (st.st_size > (espacio))
     {
         printf("Error: El archivo fue modificado y ya no entra en memoria!\n");
-        P(semid,0);
         printf("Creando memoria devuelta con suficiente espacio!\n");
         shmid = shmget(direccionSHM, st.st_size * 2, IPC_CREAT | 0666);
         espacio = st.st_size * 2 / 1024;
@@ -175,7 +160,6 @@ void handle_alarma(int sig)
         {
             printf("Espacio en memoria creado exitosamente, shmid = '%i'\n", shmid);
         }
-        V(semid,0);
     }
 
     fread(&contenidoHtml, st.st_size + 1, 1, fdHtml);
@@ -185,13 +169,11 @@ void handle_alarma(int sig)
     int i = 0;
     printf("Guardando archivo en memoria... error aca\n");
     // NO SE PORQUE EL SEMAFORO NO FRENA EL CGI...
-    P(semid,0);
     for (; i <= st.st_size; i++)
     {
         *(ptrSHM + i) = contenidoHtml[i];
         printf("%c", *(ptrSHM + i));
     }
-    V(semid,0);
     printf("Contenido guardado en memoria con exito!\n");
     alarm(tiempoRecarga);
 }
@@ -200,6 +182,5 @@ void handle_int(int sig)
 {
     printf("\nEliminando memoria compartida y semaforo!\n");
     shmctl(shmid, IPC_RMID, 0);
-    semctl(semid, IPC_RMID, 0);
     exit(0);
 }

@@ -25,8 +25,6 @@ int esHexa(char c);
 char charHexa(char *p);
 int obtenercgi(char *destino, int largo);
 void mostrarHTML(int *pSHM, char tag[256]);
-void P(int, int);
-void V(int, int);
 
 char cmdargs[2048], args[1024], cmd[1024], msg[300];
 char tag[256];
@@ -45,12 +43,6 @@ int main()
         // printf("Se conecto a la memoria compartida con exito, shmid = %i!\n", shmid);
     }
 
-    semid = semget(0xa, 0, 0);
-    if (semid < 0) {
-        printf("Error: Hubo un error al conseguir el semaforo! %i\n", semid);
-        return -1;
-    }
-
     int *pSHM = (int *)shmat(shmid, 0, 0);
 
     memset(cmdargs, 0, 2048);
@@ -59,13 +51,6 @@ int main()
     extraer(tag, 1024, "tag", cmdargs);
     printf("Se extraera contenido de tag: '%s'<br>\n", tag);
     mostrarHTML(pSHM, tag);
-    /*
-    int i;
-    while(*(pSHM+i) != '\0') {
-        printf("%c",*(pSHM+i));
-        i++;
-    }
-    */
     printf("\n");
     return 1;
 }
@@ -77,8 +62,6 @@ void mostrarHTML(int *pSHM, char tag[256])
     int icomptag = 0;
     int i2 = 0;
     int mostrar = 0;
-    // DEBERIA FRENARSE ACA, YA QUE EL MONITOR ESTA MODIFICANDO
-    P(semid,0);
     while (*(pSHM + i1) != '\0')
     {
         if (*(pSHM + i1) == '<')
@@ -114,7 +97,6 @@ void mostrarHTML(int *pSHM, char tag[256])
         }
         i1++;
     }
-    V(semid,0);
     printf("\n");
     return;
 }
