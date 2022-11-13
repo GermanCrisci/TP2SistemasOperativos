@@ -12,7 +12,7 @@
 typedef struct strucRegistro
 {
     int estado;
-    int bloqueado; //=0(libre), <>0(bloqueado, contiene el pid del proceso que lo bloquea)
+    int bloqueado; // =0 (libre), <>0 (bloqueado, contiene el pid del proceso que lo bloquea)
     char descripcion[100];
 } registro;
 
@@ -22,18 +22,19 @@ typedef struct msgbuf
     char data[156];
 } mensaje;
 
-void handle_int(int s);
+int  buscarEspacio();
 void extraerMensaje();
 void atenderCliente();
-int buscarEspacio();
+void handle_int(int s);
+void desbloquearRegistros();
 
-int pid;
-int ins;
+int  pid;
+int  ins;
 char descr[100];
-int cola;
-int fd;
+int  cola;
+int  fd;
 
-mensaje m;
+mensaje  m;
 registro r;
 
 int main(int argc, char **argv) {
@@ -62,6 +63,9 @@ int main(int argc, char **argv) {
         }
     }
 
+    // desbloqueo los registros por si quedaron bloqueados
+    desbloquearRegistros();
+
     // atiendo cola
     memset(m.data, 0, 156);
     // servidor siempre lee tipo 1;
@@ -80,6 +84,17 @@ int main(int argc, char **argv) {
 
         memset(m.data, 0, 156);
     }
+}
+
+void desbloquearRegistros() {
+    registro r2;
+    lseek(fd, 0, SEEK_SET);
+    while(read(fd, &r2, sizeof(r)))
+        if(r2.bloqueado != 0) {
+            r2.bloqueado = 0;
+            lseek(fd, -(sizeof(r2)), SEEK_CUR);
+            write(fd, &r2, sizeof(r2));
+        }
 }
 
 void atenderCliente()
@@ -145,14 +160,19 @@ void atenderCliente()
                 read(fd, &r, sizeof(r));
                 m.tipo = pid;
                 if (r.estado == 1) {
-                    // pongo estado borrado.
-                    r.estado = 2;
-                    // modifico el registro
-                    lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
-                    write(fd, &r, sizeof(r));
-                    // envio confirmacion
-                    sprintf(m.data, "1,%i,Se elimino el registro %i exitosamente", ins, ins);
-                    msgsnd(cola, &m, 156, 0);
+                	if (r.bloqueado ==0 || r.bloqueado == pid){
+                    	// pongo estado borrado.
+                    	r.estado = 2;
+                    	// modifico el registro
+                    	lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
+                    	write(fd, &r, sizeof(r));
+                    	// envio confirmacion
+                    	sprintf(m.data, "1,%i,Se elimino el registro %i exitosamente", ins, ins);
+                    	msgsnd(cola, &m, 156, 0);
+                    } else {
+                    	sprintf(m.data, "0,%i,Registro bloqueado por el proceso %i", ins, r.bloqueado);
+                    	msgsnd(cola, &m, 156, 0);
+                    }
                 } else {
                     sprintf(m.data, "0,%i,No existe el registro que intento eliminar", ins);
                     msgsnd(cola, &m, 156, 0);
@@ -229,8 +249,8 @@ int buscarEspacio() {
     lseek(fd, 0, SEEK_SET);
     int seEncontro = 0;
     int num = 0;
-    while(read(fd, &r, sizeof(r))) {
-        if(r.estado == 0 || r.estado == 2)
+    while(read(fd, &r2, sizeof(r))) {
+        if((r2.estado == 0 || r2.estado == 2) && r2.bloqueado == 0)
             return num;
         num++;
     }
@@ -262,6 +282,7 @@ void extraerMensaje()
         printf("Token descr: %s\n", token);
         strcpy(descr, token);
     }
+    descr[strlen(token)] = '\0'; 
 
     return;
 }
