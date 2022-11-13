@@ -52,6 +52,5 @@ int main(int argc, char **argv) {
         printf("Esperando respuesta...\n");
         msgrcv(cola, &m, 156, pid, 0);
         printf("Recibio: %s\n", m.data);
-
     }
 }
