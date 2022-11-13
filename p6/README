@@ -1,0 +1,5 @@
+Misma estructura que el 6. Pero le agragamos a los registros un campo "bloqueado".
+r.bloqueado = 0 si el registro no esta bloqueado.
+r.bloqueado = numero de pid del proceso que lo bloqueo. Si el registro esta bloqueado.
+Con este campo controlamos que solo el proceso que bloqueo pueda modificar/leer y desbloquear el registro.
+Hay que tener cuidado al terminar un proceso si este tiene procesos bloqueados ya que despues no se pueden desbloquear.
