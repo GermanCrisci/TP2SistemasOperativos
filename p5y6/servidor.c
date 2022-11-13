@@ -12,6 +12,7 @@
 typedef struct strucRegistro
 {
     int estado;
+    int bloqueado; // =0 (libre), <>0 (bloqueado, contiene el pid del proceso que lo bloquea)
     char descripcion[100];
 } registro;
 
@@ -21,18 +22,19 @@ typedef struct msgbuf
     char data[156];
 } mensaje;
 
-void handle_int(int s);
+int  buscarEspacio();
 void extraerMensaje();
 void atenderCliente();
-int buscarEspacio();
+void handle_int(int s);
+void desbloquearRegistros();
 
-int pid;
-int ins;
+int  pid;
+int  ins;
 char descr[100];
-int cola;
-int fd;
+int  cola;
+int  fd;
 
-mensaje m;
+mensaje  m;
 registro r;
 
 int main(int argc, char **argv) {
@@ -53,12 +55,16 @@ int main(int argc, char **argv) {
         fd = open("registros", O_CREAT | O_TRUNC | O_RDWR | 0666);
         // escribo los 1000 registros nulos.
         r.estado = 0;
+        r.bloqueado = 0;
         strcpy(r.descripcion, "");
         for (int i = 0; i < 1000; i++)
         {
             write(fd, &r, sizeof(r));
         }
     }
+
+    // desbloqueo los registros por si quedaron bloqueados
+    desbloquearRegistros();
 
     // atiendo cola
     memset(m.data, 0, 156);
@@ -80,6 +86,17 @@ int main(int argc, char **argv) {
     }
 }
 
+void desbloquearRegistros() {
+    registro r2;
+    lseek(fd, 0, SEEK_SET);
+    while(read(fd, &r2, sizeof(r)))
+        if(r2.bloqueado != 0) {
+            r2.bloqueado = 0;
+            lseek(fd, -(sizeof(r2)), SEEK_CUR);
+            write(fd, &r2, sizeof(r2));
+        }
+}
+
 void atenderCliente()
 {
     // ignoro interrupcion ctrl c hasta que termine de atender
@@ -91,23 +108,31 @@ void atenderCliente()
     // creacion FUNCIONA BIEN
     if (ins == -1) { 
         // agrego nuevo en el primer espacio libre.
-        int num = buscarEspacio();
-        if(num >= 0) {
-            lseek(fd, sizeof(r)*num, SEEK_SET);
-            r.estado = 1;
-            strcpy(r.descripcion, descr);
-            write(fd, &r, sizeof(registro));
-            // envio confirmacion
-            m.tipo = pid;
-            sprintf(m.data, "1,%i,Se creo el registro exitosamente", num);
-            msgsnd(cola, &m, 156, 0);
+        int num = buscarEspacio() + 1;
+        if(num > 0) {
+        	lseek(fd, sizeof(r)*(num-1), SEEK_SET);
+            read(fd, &r, sizeof(r));
+        	if(r.bloqueado == 0 || r.bloqueado == pid){
+            	r.estado = 1;
+            	strcpy(r.descripcion, descr);
+            	lseek(fd, sizeof(r)*(num-1), SEEK_SET);
+            	write(fd, &r, sizeof(registro));
+            	// envio confirmacion
+            	m.tipo = pid;
+            	sprintf(m.data, "1,%i,Se creo el registro exitosamente", num);
+            	msgsnd(cola, &m, 156, 0);
+            } else {
+            	m.tipo = pid;
+            	sprintf(m.data, "0,%i,Registro bloqueado por proceso %i", num, r.bloqueado);
+            	msgsnd(cola, &m, 156, 0);
+            }
         } else { // no habia espacio
             m.tipo = pid;
             strcpy(m.data, "0,No hay espacio para mas registros");
             msgsnd(cola, &m, 156, 0);
         }
     } else {
-        if (strncmp(descr, "leer", 4) == 0 || strncmp(descr, "borrar", 6) == 0) {
+        if (strncmp(descr, "leer", 4) == 0 || strncmp(descr, "borrar", 6) == 0 || strncmp(descr, "lock", 4) == 0 || strncmp(descr, "unlock", 6) == 0) {
             // lectura FUNCION BIEN
             if (strncmp(descr, "leer", 4) == 0 && ins > 0 && ins <= 1000) {
                 // leo el registro, en ins me llego el numero
@@ -118,8 +143,13 @@ void atenderCliente()
                     sprintf(m.data, "0,%i,El registro que desea no existe", ins);
                     msgsnd(cola, &m, 156, 0);
                 } else { // caso existe
-                    sprintf(m.data, "1,%i,%s", ins, r.descripcion);
-                    msgsnd(cola, &m, 156, 0);
+                	if (r.bloqueado == 0 || r.bloqueado == pid){
+                    	sprintf(m.data, "1,%i,%s", ins, r.descripcion);
+                    	msgsnd(cola, &m, 156, 0);
+                    } else {
+                    	sprintf(m.data, "0,%i,Registro bloqueado por %i", ins, r.bloqueado);
+                    	msgsnd(cola, &m, 156, 0);
+                    }
                 }
             }
 
@@ -127,32 +157,79 @@ void atenderCliente()
             if (strncmp(descr, "borrar", 6) == 0 && ins > 0 && ins <= 1000) {
                 // leo el registro, en ins me llego el numero
                 lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
+                read(fd, &r, sizeof(r));
                 m.tipo = pid;
                 if (r.estado == 1) {
                     // pongo estado borrado.
                     r.estado = 2;
                     // modifico el registro
+                    lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
                     write(fd, &r, sizeof(r));
                     // envio confirmacion
-                    sprintf(m.data, "1,%i,Se elimino el registro %i exitosamente", ins);
+                    sprintf(m.data, "1,%i,Se elimino el registro %i exitosamente", ins, ins);
                     msgsnd(cola, &m, 156, 0);
                 } else {
                     sprintf(m.data, "0,%i,No existe el registro que intento eliminar", ins);
                     msgsnd(cola, &m, 156, 0);
                 }
             }
+            //Lock
+            if (strncmp(descr, "lock", 4) == 0 && ins > 0 && ins <= 1000) {
+            	lseek(fd, sizeof(r)*(ins-1),SEEK_SET);
+            	read(fd, &r, sizeof(r));
+            	m.tipo = pid;
+            	if(r.bloqueado == 0) {
+            		r.bloqueado = pid;
+            		lseek(fd, sizeof(r)*(ins-1),SEEK_SET);
+            		write(fd, &r, sizeof(r));
+            		sprintf(m.data,"1,%i, Se bloqueo correctamente el registro",ins);
+            		msgsnd(cola, &m, 156, 0);
+            	}
+            	else {
+            		sprintf(m.data,"0,%i, Registro ya bloqeuado por %i",ins, r.bloqueado);
+            		msgsnd(cola, &m, 156, 0);
+            	}
+            }
+            //Unlock
+            if (strncmp(descr, "unlock", 6) == 0 && ins > 0 && ins <= 1000) {
+            	lseek(fd, sizeof(r)*(ins-1),SEEK_SET);
+            	read(fd, &r, sizeof(r));
+            	m.tipo = pid;
+            	if(r.bloqueado == pid) {
+            		r.bloqueado = 0;
+            		lseek(fd, sizeof(r)*(ins-1),SEEK_SET);
+            		write(fd, &r, sizeof(r));
+            		sprintf(m.data,"1,%i, Se desbloqueo correctamente el registro",ins);
+            		msgsnd(cola, &m, 156, 0);
+            	} else {
+            		if(r.bloqueado ==0){
+            			sprintf(m.data,"0,%i, El registro ya estaba desbloqueado",ins);
+            			msgsnd(cola, &m, 156, 0);
+            		} else {
+            			sprintf(m.data,"0,%i, Registro bloqueado por %i, sigue bloqueado",ins, r.bloqueado);
+            			msgsnd(cola, &m, 156, 0);
+            		}
+            	}
+            }
         } else {
             // modificacion FUNCION BIEN
             if (ins > 0 && ins <= 1000) {
                 // leo el registro, en ins me llego el numero
                 lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
-                r.estado = 1;
-                strcpy(r.descripcion, descr);
-                write(fd, &r, sizeof(r));
-                // envio confirmacion
+                read(fd, &r, sizeof(r));
                 m.tipo = pid;
-                sprintf(m.data, "Se modifico el registro %i exitosamente", ins);
-                msgsnd(cola, &m, 156, 0);
+                if(r.bloqueado == 0 || r.bloqueado == pid){
+                	r.estado = 1;
+                	strcpy(r.descripcion, descr);
+                	lseek(fd, sizeof(r) * (ins - 1), SEEK_SET);
+                	write(fd, &r, sizeof(r));
+                	// envio confirmacion
+                	sprintf(m.data, "1,%i,Se modifico el registro %i exitosamente", ins, ins);
+                	msgsnd(cola, &m, 156, 0);
+                } else {
+                	sprintf(m.data, "0,%i,Registo bloqueado por %i", ins, r.bloqueado);
+                	msgsnd(cola, &m, 156, 0);
+                }
             }
         }
     }
@@ -167,8 +244,8 @@ int buscarEspacio() {
     lseek(fd, 0, SEEK_SET);
     int seEncontro = 0;
     int num = 0;
-    while(read(fd, &r, sizeof(r))) {
-        if(r.estado == 0 || r.estado == 2)
+    while(read(fd, &r2, sizeof(r))) {
+        if((r2.estado == 0 || r2.estado == 2) && r2.bloqueado == 0)
             return num;
         num++;
     }
@@ -200,6 +277,7 @@ void extraerMensaje()
         printf("Token descr: %s\n", token);
         strcpy(descr, token);
     }
+    descr[strlen(token)] = '\0'; 
 
     return;
 }
