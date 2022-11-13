@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
         texto[strlen(texto)-1] = '\0';
         sprintf(m.data, "%i,%s", pid, texto);
         printf("Enviando: %s\n", m.data);
+        m.tipo = 1;
         msgsnd(cola, &m, 156, 0);
 
         
