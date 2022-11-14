@@ -16,8 +16,8 @@ int main(void) {
 	int semid2 = semget(0xB,0,0);
 	printf("semid2 = %d\n",semid2);
 
-    remove("archivo1");
-    remove("archivo2");
+    remove("chat1");
+    remove("chat2");
 
 	semctl(semid1,0,IPC_RMID); 
 	semctl(semid2,0,IPC_RMID); 

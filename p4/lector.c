@@ -58,7 +58,7 @@ int main(int argc,char **argv) {
 		lseek(fd, 256*out, SEEK_SET);
 		read(fd,&buffer, 256);
 		printf("%s%s\n",prompt,buffer);
-		(id == 1) ? V(semid1,0) : V(semid2,0);
+		(id == 1) ? V(semid2,0) : V(semid1,0);
 		out = (out + 1) % BUFFERSIZE;
 	} while(strncmp(buffer,"chau",4) != 0);
 	printf("lector fin!\n");	
