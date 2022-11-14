@@ -1,0 +1,4 @@
+gcc semcrear.c -o semcrear
+gcc semeliminar.c -o semeliminar
+gcc escritor.c -o escritor
+gcc lector.c -o lector

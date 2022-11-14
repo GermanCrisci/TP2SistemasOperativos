@@ -1,60 +1,98 @@
-#include <sys/types.h>
 #include <stdio.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+#include <sys/shm.h>
+#include <fcntl.h>
 
+#define BUFFERSIZE 5
+struct memchat {
+	//int count[2];
+	char buffer[2][BUFFERSIZE][256];
+} memchat;
+// wait
+void P(int semid,int sem); // wait(S1)
+// signal
+void V(int semid,int sem); // signal(S0)
+// ingreso
+void ingreso(char *prompt,char *dest,int size);
 
-int BUFFERSIZE = 10;
-int count = 0;
-char mensaje[256];
-int fd;
-int id;
-void P(int semid,int sem);
-void V(int semid,int sem);
-int main(int argc, char**argv){ 
-	//creo semaforos
-	int semid = semget(0xa,2, IPC_CREAT|IPC_EXCL|0600);
-	if (semid ==-1){semid = semget(0xa,0,0);}
-	printf("Semaforos SVR4 creados\n");
-	//inicializo semaforos
-	semctl(semid,0,SETVAL,1);
-	semctl(semid,1,SETVAL,1);
-
-	if (access("filechat1", F_OK) == 0) {
-        fd= open("filechat1", O_WRONLY);
-        printf("Abro archivo\n");
-    }
-    else {
-        fd = open("filechat1", O_CREAT | O_TRUNC | O_WRONLY | 0666);
-        printf("Creo archivo\n");
+int main(int argc,char **argv) {
+	if ( argc != 2 ) {
+		printf("./escritor <nro>\n<nro> debe ser 1 o 2\n");
+		return 2;
 	}
+	int id = atoi(argv[1]);
+	printf("id=%d\n",id);
+	if ( !(id >= 1 && id <= 2) ) {
+		printf("<nro> indicado por linea de comandos debe ser 1 o 2\n");
+		return 3;
+	}
+
+	/*
+	./escritor 1 P(semid1,0) V(semid1,1)
+	./escritor 2 P(semid2,0) V(semid2,1)
+	./lector 1 P(semid1,1) V(semid2,0) 
+	./lector 2 P(semid2,1) V(semid1,0)
+	*/
+
+	// habro el archivo al que escribo
+	int fd;
+	if(id == 1) {
+    	fd = open("chat1", O_RDWR);
+	} else {
+        fd = open("chat2", O_RDWR);
+	}
+
+	int semid1 = semget(0xA,0,0);
+	printf("semid1=%d\n",semid1);
+	int semid2 = semget(0xB,0,0);
+	printf("semid2=%d\n",semid2);
+
+	char buffer[256];
+	char prompt[20];
+	sprintf(prompt,"U%d>",id);
+	int in = 0;
+
 	do {
-			P(semid,0);
-			printf("%i>>",id);
-			fgets(mensaje,256,stdin);
-			lseek(fd,0,SEEK_SET);
-			write(fd, &mensaje,strlen(mensaje)+1);
-			V(semid,1);
-		} while( strncmp(mensaje,"chau",4) != 0 );
-	semctl(semid, 0, IPC_RMID);
+		(id == 1) ? P(semid1,0) : P(semid2,0);
+		// ingreso por teclado
+		ingreso(prompt,buffer,256);
+		// escribo en memoria compartida lo ingresado por teclado
+		lseek(fd, 256*in, SEEK_SET);
+		write(fd,buffer, strlen(buffer));
+		(id == 1) ? V(semid1,1) : V(semid2,1);
+		in = (in + 1) % BUFFERSIZE;
+	} while(strncmp(buffer,"chau",4) != 0);
+	printf("escritor fin!\n");
+	// desconecto detach de memoria compartida
+	exit(0);
 }
 
-void P(int semid,int sem) {
+// wait
+void P(int semid,int sem) { // wait(S1)
 	struct sembuf buf;
 	buf.sem_num = sem;
-	buf.sem_op = -1; 
+	buf.sem_op = -1; // wait, resta 1
 	buf.sem_flg = 0;
 	semop(semid,&buf,1);
 }
-void V(int semid,int sem) { 
+
+// signal
+void V(int semid,int sem) { // signal(S0)
 	struct sembuf buf;
 	buf.sem_num = sem;
-	buf.sem_op = 1; 
+	buf.sem_op = 1; // signal, suma 1
 	buf.sem_flg = 0;
 	semop(semid,&buf,1);
+}
+
+// ingreso
+void ingreso(char *prompt,char *dest,int size) {
+	printf("%s",prompt);
+	fgets(dest,size,stdin);
+	dest[strlen(dest)-1]='\0';
 }
